@@ -1335,7 +1335,7 @@ func TestUpdateDomainConfigMap(t *testing.T) {
 
 			// Wait initial reconcile to finish.
 			rl := fakerouteinformer.Get(ctx).Lister().Routes(route.Namespace)
-			if err := wait.PollImmediate(10*time.Millisecond, 5*time.Second, func() (bool, error) {
+			if err := wait.PollUntilContextTimeout(ctx, 10*time.Millisecond, 5*time.Second, true, func(context.Context) (bool, error) {
 				r, err := rl.Get(route.Name)
 				if err != nil {
 					return false, err
@@ -1369,7 +1369,7 @@ func TestUpdateDomainConfigMap(t *testing.T) {
 				}
 
 				// Ensure we have the proper version in the informers.
-				if err := wait.PollImmediate(10*time.Millisecond, 3*time.Second, func() (bool, error) {
+				if err := wait.PollUntilContextTimeout(ctx, 10*time.Millisecond, 3*time.Second, true, func(context.Context) (bool, error) {
 					r, err := rl.Get(route.Name)
 					return r != nil && r.Generation == route.Generation, err
 				}); err != nil {
@@ -1383,7 +1383,7 @@ func TestUpdateDomainConfigMap(t *testing.T) {
 				}
 
 				var gotDomain string
-				if err := wait.PollImmediate(10*time.Millisecond, 5*time.Second, func() (bool, error) {
+				if err := wait.PollUntilContextTimeout(ctx, 10*time.Millisecond, 5*time.Second, true, func(context.Context) (bool, error) {
 					r, err := routeClient.Get(ctx, route.Name, metav1.GetOptions{})
 					if err != nil {
 						return false, err
@@ -1498,7 +1498,7 @@ func TestGlobalResyncOnUpdateDomainConfigMap(t *testing.T) {
 			}
 
 			rl := routeInformer.Lister()
-			if err := wait.PollImmediate(10*time.Millisecond, 5*time.Second, func() (bool, error) {
+			if err := wait.PollUntilContextTimeout(ctx, 10*time.Millisecond, 5*time.Second, true, func(context.Context) (bool, error) {
 				r, err := rl.Routes(route.Namespace).Get(route.Name)
 				if err != nil && errors.IsNotFound(err) {
 					return false, nil
@@ -1514,7 +1514,7 @@ func TestGlobalResyncOnUpdateDomainConfigMap(t *testing.T) {
 			test.doThings(watcher)
 
 			expectedDomain := fmt.Sprintf("%s.%s.%s", route.Name, route.Namespace, test.expectedDomainSuffix)
-			if err := wait.PollImmediate(10*time.Millisecond, 5*time.Second, func() (bool, error) {
+			if err := wait.PollUntilContextTimeout(ctx, 10*time.Millisecond, 5*time.Second, true, func(context.Context) (bool, error) {
 				r, err := rl.Routes(route.Namespace).Get(route.Name)
 				if err != nil {
 					return false, err
@@ -1588,40 +1588,40 @@ func TestRouteDomain(t *testing.T) {
 	}
 }
 
-func TestAutoTLSEnabled(t *testing.T) {
+func TestExternalDomainTLSEnabled(t *testing.T) {
 	tests := []struct {
-		name                  string
-		configAutoTLSEnabled  bool
-		tlsDisabledAnnotation string
-		wantAutoTLSEnabled    bool
+		name                           string
+		configExternalDomainTLSEnabled bool
+		tlsDisabledAnnotation          string
+		wantExternalDomainTLSEnabled   bool
 	}{{
-		name:                 "AutoTLS enabled by config, not disabled by annotation",
-		configAutoTLSEnabled: true,
-		wantAutoTLSEnabled:   true,
+		name:                           "ExternalDomainTLS enabled by config, not disabled by annotation",
+		configExternalDomainTLSEnabled: true,
+		wantExternalDomainTLSEnabled:   true,
 	}, {
-		name:                  "AutoTLS enabled by config, disabled by annotation",
-		configAutoTLSEnabled:  true,
-		tlsDisabledAnnotation: "true",
-		wantAutoTLSEnabled:    false,
+		name:                           "ExternalDomainTLS enabled by config, disabled by annotation",
+		configExternalDomainTLSEnabled: true,
+		tlsDisabledAnnotation:          "true",
+		wantExternalDomainTLSEnabled:   false,
 	}, {
-		name:                 "AutoTLS disabled by config, not disabled by annotation",
-		configAutoTLSEnabled: false,
-		wantAutoTLSEnabled:   false,
+		name:                           "ExternalDomainTLS disabled by config, not disabled by annotation",
+		configExternalDomainTLSEnabled: false,
+		wantExternalDomainTLSEnabled:   false,
 	}, {
-		name:                  "AutoTLS disabled by config, disabled by annotation",
-		configAutoTLSEnabled:  false,
-		tlsDisabledAnnotation: "true",
-		wantAutoTLSEnabled:    false,
+		name:                           "ExternalDomainTLS disabled by config, disabled by annotation",
+		configExternalDomainTLSEnabled: false,
+		tlsDisabledAnnotation:          "true",
+		wantExternalDomainTLSEnabled:   false,
 	}, {
-		name:                  "AutoTLS enabled by config, invalid annotation",
-		configAutoTLSEnabled:  true,
-		tlsDisabledAnnotation: "foo",
-		wantAutoTLSEnabled:    true,
+		name:                           "ExternalDomainTLS enabled by config, invalid annotation",
+		configExternalDomainTLSEnabled: true,
+		tlsDisabledAnnotation:          "foo",
+		wantExternalDomainTLSEnabled:   true,
 	}, {
-		name:                  "AutoTLS disabled by config, invalid annotation",
-		configAutoTLSEnabled:  false,
-		tlsDisabledAnnotation: "foo",
-		wantAutoTLSEnabled:    false,
+		name:                           "ExternalDomainTLS disabled by config, invalid annotation",
+		configExternalDomainTLSEnabled: false,
+		tlsDisabledAnnotation:          "foo",
+		wantExternalDomainTLSEnabled:   false,
 	}}
 
 	r := Route("test-ns", "test-route")
@@ -1632,14 +1632,14 @@ func TestAutoTLSEnabled(t *testing.T) {
 			ctx := logtesting.TestContextWithLogger(t)
 			ctx = config.ToContext(ctx, &config.Config{
 				Network: &netcfg.Config{
-					AutoTLS: test.configAutoTLSEnabled,
+					ExternalDomainTLS: test.configExternalDomainTLSEnabled,
 				},
 			})
 
-			r.Annotations[networking.DisableAutoTLSAnnotationKey] = test.tlsDisabledAnnotation
+			r.Annotations[networking.DisableExternalDomainTLSAnnotationKey] = test.tlsDisabledAnnotation
 
-			if got := autoTLSEnabled(ctx, r); got != test.wantAutoTLSEnabled {
-				t.Errorf("autoTLSEnabled = %t, want %t", got, test.wantAutoTLSEnabled)
+			if got := externalDomainTLSEnabled(ctx, r); got != test.wantExternalDomainTLSEnabled {
+				t.Errorf("externalDomainTLSEnabled = %t, want %t", got, test.wantExternalDomainTLSEnabled)
 			}
 		})
 	}

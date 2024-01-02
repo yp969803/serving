@@ -52,7 +52,7 @@ func fakeCertCache(ctx context.Context) *CertCache {
 	}
 
 	secretInformer.Informer().AddEventHandler(cache.FilteringResourceEventHandler{
-		FilterFunc: controller.FilterWithNameAndNamespace(system.Namespace(), netcfg.ServingInternalCertName),
+		FilterFunc: controller.FilterWithNameAndNamespace(system.Namespace(), netcfg.ServingRoutingCertName),
 		Handler: cache.ResourceEventHandlerFuncs{
 			UpdateFunc: cr.handleCertificateUpdate,
 			AddFunc:    cr.handleCertificateAdd,
@@ -78,7 +78,7 @@ func TestReconcile(t *testing.T) {
 
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      netcfg.ServingInternalCertName,
+			Name:      netcfg.ServingRoutingCertName,
 			Namespace: system.Namespace(),
 		},
 		Data: map[string][]byte{
@@ -92,7 +92,7 @@ func TestReconcile(t *testing.T) {
 	fakesecretinformer.Get(ctx).Informer().GetIndexer().Add(secret)
 
 	// Wait for the resources to be created and the handler is called.
-	if err := wait.PollImmediate(10*time.Millisecond, 2*time.Second, func() (bool, error) {
+	if err := wait.PollUntilContextTimeout(ctx, 10*time.Millisecond, 2*time.Second, true, func(context.Context) (bool, error) {
 		// To access cert.Certificate, take a lock.
 		cr.certificatesMux.RLock()
 		defer cr.certificatesMux.RUnlock()
@@ -108,7 +108,7 @@ func TestReconcile(t *testing.T) {
 	newCert, _ := tls.X509KeyPair(newTLSCrt, newTLSKey)
 
 	fakekubeclient.Get(ctx).CoreV1().Secrets(system.Namespace()).Update(ctx, secret, metav1.UpdateOptions{})
-	if err := wait.PollImmediate(10*time.Millisecond, 5*time.Second, func() (bool, error) {
+	if err := wait.PollUntilContextTimeout(ctx, 10*time.Millisecond, 5*time.Second, true, func(context.Context) (bool, error) {
 		// To access cert.Certificate, take a lock.
 		cr.certificatesMux.RLock()
 		defer cr.certificatesMux.RUnlock()
@@ -132,7 +132,7 @@ func TestReconcile(t *testing.T) {
 	pool.AddCert(ca)
 
 	fakekubeclient.Get(ctx).CoreV1().Secrets(system.Namespace()).Update(ctx, secret, metav1.UpdateOptions{})
-	if err := wait.PollImmediate(10*time.Millisecond, 10*time.Second, func() (bool, error) {
+	if err := wait.PollUntilContextTimeout(ctx, 10*time.Millisecond, 10*time.Second, true, func(context.Context) (bool, error) {
 		// To access cr.TLSConf.RootCAs, take a lock.
 		cr.certificatesMux.RLock()
 		defer cr.certificatesMux.RUnlock()
